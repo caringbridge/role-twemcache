@@ -1,0 +1,211 @@
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:             memcached
+# Required-Start:       $syslog
+# Required-Stop:        $syslog
+# Should-Start:         $local_fs
+# Should-Stop:          $local_fs
+# Default-Start:        2 3 4 5
+# Default-Stop:         0 1 6
+# Short-Description:    memcached - Memory caching daemon replicated
+# Description:          memcached - Memory caching daemon replicated
+### END INIT INFO
+# Author: Marcus Spiegel <marcus.spiegel@gmail.com>
+#
+# Please remove the "Author" lines above and replace them
+# with your own name if you copy and modify this script.
+# Do NOT "set -e"
+# PATH should only include /usr/* if it runs after the mountnfs.sh script
+PATH=/sbin:/usr/sbin:/bin:/usr/bin:/usr/local/bin
+DESC="memcachedrep"
+NAME=twemcache
+DAEMON=/usr/local/bin/twemcache
+DAEMON_ARGS="--options args"
+PIDFILE=/var/run/memcachedrep.pid
+SCRIPTNAME=/etc/init.d/twemcache
+VERBOSE="yes"
+NUM=`cat /etc/default/memcachedrep | grep -v ^# | grep -c DAEMON`
+# Exit if the package is not installed
+[ -x "$DAEMON" ] || exit 0
+# Read configuration variable file if it is present
+[ -r /etc/default/$DESC ] && . /etc/default/$DESC
+# Load the VERBOSE setting and other rcS variables
+#. /lib/init/vars.sh
+. /etc/rc.d/init.d/functions
+# Define LSB log_* functions.
+# Depend on lsb-base (>= 3.0-6) to ensure that this file is present.
+# . /lib/lsb/init-functions
+#
+#
+# create functions similar to lsb for rhel systems
+    log_daemon_msg() {
+        # Red Hat style init scripts do not print daemon name like Debian's
+        echo -n "$1"
+    }
+   log_end_msg() {
+        if [ ${1:-0} -ne 0 ]; then
+            failure
+        else
+            success
+        fi
+        echo
+    }
+
+
+# Function that starts the daemon/service
+#
+do_start()
+{
+        # check to make sure processes aren't running
+                #
+        # check for port and process on it ???
+        # fuser -n tcp 11201 2>/dev/null | awk '{print $1}'
+                # this check or else that check
+        # check for pid in pidfile and ps check
+
+for ((i=1; i<=$NUM; i++))
+do
+eval darg[$i]='$DAEMON_ARGS'"${i}"
+        pidfile=`cat /etc/default/memcachedrep | grep DAEMON_ARGS${i} | awk '{print $10}'`
+        echo "arguments to start this instance of memcache are:"
+        echo "${darg[$i]}"
+        if [ -f $pidfile ]; then
+                testpid=`cat $pidfile`
+                if [ -n "$testpid" -a -e "/proc/$testpid" ]; then
+                        echo " this memcache instance is already running - pid $testpid"
+                        echo; echo; echo
+                else
+                        $DAEMON ${darg[$i]}
+                        #/usr/local/bin/memcached ${darg[$i]}
+        echo ".................................started\r"
+                fi
+        else
+                #echo "/usr/local/bin/memcached ${darg[$i]}"
+                $DAEMON  ${darg[$i]}
+                #/usr/local/bin/memcached  ${darg[$i]}
+                echo "started"
+        fi
+done
+
+        # Add code here, if necessary, that waits for the process to be ready
+        # to handle requests from services started subsequently which depend
+        # on this one.  As a last resort, sleep for some time.
+}
+#
+# Function that stops the daemon/service
+#
+do_stop()
+{
+        # Return
+        #   0 if daemon has been stopped
+        #   1 if daemon was already stopped
+        #   2 if daemon could not be stopped
+        #   other if a failure occurred
+    local pid=""
+#for i in 1 2 3 4 5
+for ((i=1; i<=$NUM; i++))
+do
+    if [ -r "${PIDFILE}${i}" ]; then
+        pid=$(cat "${PIDFILE}${i}")
+        echo
+        #echo "pid is $pid"
+        if [ -n "$pid" -a -e "/proc/$pid" ]; then
+                kill  $pid >/dev/null 2>&1
+                retval=$?
+                if [ $retval -eq 0 ]; then
+                        echo "$pid killed successfully, now removing the pid file ${PIDFILE}${i}"
+                        rm -f "${PIDFILE}${i}"
+                else
+                        echo "memcached process with pid $pid could not be stopped, the pid file ${PIDFILE}${i} will not be removed"
+                fi
+        else
+                echo "There was a problem trying to kill pid $pid"
+                echo "The file ${PIDFILE}${i} was not removed"
+        fi
+        else
+                echo "There is no pidfile ${PIDFILE}${i} - something is wrong if memcached is still running"
+    fi
+done
+
+#    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PIDFILE --name $NAME
+ #   RETVAL="$?"
+    [ "$RETVAL" = 2 ] && return 2
+        # Wait for children to finish too if this is a daemon that forks
+        # and if the daemon is only ever run from this initscript.
+        # If the above conditions are not satisfied then add some other code
+        # that waits for the process to drop all resources that could be
+        # needed by services started subsequently.  A last resort is to
+        # sleep for some time.
+        #start-stop-daemon --stop --quiet --oknodo --retry=0/30/KILL/5 --exec $DAEMON
+#       [ "$?" = 2 ] && return 2
+        # Many daemons don't delete their pidfiles when they exit.
+        #rm -f $PIDFILE
+        #return "$?"
+}
+#
+# Function that sends a SIGHUP to the daemon/service
+#
+do_reload() {
+        #
+        # If the daemon can reload its configuration without
+        # restarting (for example, when it is sent a SIGHUP),
+        # then implement that here.
+        #
+        start-stop-daemon --stop --signal 1 --quiet --pidfile $PIDFILE --name $NAME
+        return 0
+}
+case "$1" in
+  start)
+        [ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC" "$NAME"
+        do_start
+        case "$?" in
+                0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+                2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+        esac
+        ;;
+  stop)
+        [ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME"
+        do_stop
+        case "$?" in
+                0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+                2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+        esac
+        ;;
+  #reload|force-reload)
+        #
+        # If do_reload() is not implemented then leave this commented out
+        # and leave 'force-reload' as an alias for 'restart'.
+        #
+        #log_daemon_msg "Reloading $DESC" "$NAME"
+        #do_reload
+        #log_end_msg $?
+        #;;
+  restart|force-reload)
+        #
+        # If the "reload" option is implemented then remove the
+        # 'force-reload' alias
+        #
+        log_daemon_msg "Restarting $DESC" "$NAME"
+        do_stop
+        case "$?" in
+          0|1)
+                do_start
+                case "$?" in
+                        0) log_end_msg 0 ;;
+                        1) log_end_msg 1 ;; # Old process is still running
+                        *) log_end_msg 1 ;; # Failed to start
+                esac
+                ;;
+          *)
+                # Failed to stop
+                log_end_msg 1
+                ;;
+        esac
+        ;;
+  *)
+        #echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload}" >&2
+        echo "Usage: $SCRIPTNAME {start|stop|}" >&2
+        exit 3
+        ;;
+esac
+:

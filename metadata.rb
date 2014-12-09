@@ -1,0 +1,7 @@
+name             'role-twemcache'
+maintainer       'Stephen Van Zee'
+maintainer_email 'svanzee@caringbridge.org'
+license          'All rights reserved'
+description      'Installs/Configures Twemcache'
+long_description 'Installs/Configures Twemcache from a souce tarball.'
+version          '0.1.0'
